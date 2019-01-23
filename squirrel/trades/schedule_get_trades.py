@@ -1,7 +1,5 @@
-from __future__ import print_function
 import time
 from threading import Thread
-from OkcoinDatabaseManager import OkcoinDatabaseManager
 
 from .constants import BASE_URL_FUTURE, BASE_URL_SPOT, CONTRACT_LIST, CURRENCY_LIST
 from .trades_manager import TradesManager
@@ -35,7 +33,8 @@ def schedule_get_trades():
     list_length = len(db_manager_list)
 
     if list_length/time_between_requests > 10:
-        print('Number of requests per second exceeds Okcoin\'s limits (1 request every 0.1 seconds)')
+        raise ValueError("Number of requests per second exceeds Okcoin's "
+                         "limits (1 request every 0.1 seconds)")
 
     while True:
         # close and open mysql connection periodically to keep connection from hanging.
