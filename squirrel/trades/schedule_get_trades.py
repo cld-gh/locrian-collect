@@ -3,6 +3,7 @@ from threading import Thread
 
 from .constants import BASE_URL_FUTURE, BASE_URL_SPOT, CONTRACT_LIST, CURRENCY_LIST
 from .trades_manager import TradesManager
+from ..squirrel_logging import logger
 
 
 def get_urls_and_mysql_tables():
@@ -42,7 +43,7 @@ def schedule_get_trades():
         db_manager_list = get_mysql_objects()
         for _i in range(1000):
             time.sleep(delta_time_to_sleep(interval=time_between_requests))
-            print(_i, time.time())
+            logger.info(f'Requesting trades. {_i}')
             thread_list = []
             for i in range(list_length):
                 thread_list.append(Thread(target=db_manager_list[i].get_trades))

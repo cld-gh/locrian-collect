@@ -8,7 +8,8 @@ from ..squirrel_logging import logger
 
 class TradesManager:
     def __init__(self, mysql_table, url):
-        self.db = MySQLdb.connect('localhost', 'monitor2', 'password', 'crypto_trades')
+        self.db = MySQLdb.connect('localhost', 'monitor2', 'password', 'crypto_trades',
+                                  unix_socket='/var/run/mysqld/mysqld.sock')
         self.curs = self.db.cursor()
         self.mysql_table = mysql_table
         self.url = url
