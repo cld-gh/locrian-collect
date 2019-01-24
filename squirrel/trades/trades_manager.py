@@ -2,14 +2,18 @@ import time
 import requests
 import MySQLdb
 
-from .constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
-from ..squirrel_logging import logger
+from squirrel.constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
+from ..squirrel_logging import logger_trades
+
+
+def _connect_to_mysql():
+    return MySQLdb.connect('localhost', 'monitor2', 'password', 'crypto_trades',
+                           unix_socket='/var/run/mysqld/mysqld.sock')
 
 
 class TradesManager:
     def __init__(self, mysql_table, url):
-        self.db = MySQLdb.connect('localhost', 'monitor2', 'password', 'crypto_trades',
-                                  unix_socket='/var/run/mysqld/mysqld.sock')
+        self.db = _connect_to_mysql()
         self.curs = self.db.cursor()
         self.mysql_table = mysql_table
         self.url = url
@@ -27,7 +31,7 @@ class TradesManager:
 
     def check_tid(self, tid):
         query = f'SELECT tid FROM {self.mysql_table} where tid={tid}'
-        return self.curs.execute(query)
+        return self.execute_query(query)
 
     def add_row_to_mysql(self, request_time, return_time, row):
         trade_ts = row['date_ms']*MILLISECONDS_TO_NANOSECONDS
@@ -35,8 +39,14 @@ class TradesManager:
                         f'(unixRequestTime, unixReturnTime, trade_time, amount, price, side, tid) '
                         f'Values ({request_time}, {return_time}, {trade_ts}, {row["amount"]}, '
                         f'{row["price"]}, "{row["type"]}", {row["tid"]})')
-        self.curs.execute(insert_query)
+        self.execute_query(insert_query)
         self.db.commit()
+
+    def execute_query(self, query):
+        if not self.db.open:
+            self.db = _connect_to_mysql()
+            self.curs = self.db.cursor()
+        return self.curs.execute(query)
 
     def _get_request_trades(self,):
         try:
@@ -46,14 +56,14 @@ class TradesManager:
             return request_time, return_time, result
 
         except requests.Timeout:
-            logger.warn(f'Timeout error: {self.mysql_table}')
+            logger_trades.warn(f'Timeout error: {self.mysql_table}')
         except RuntimeError:
-            logger.warn(f'Runtime error: {self.mysql_table}')
+            logger_trades.warn(f'Runtime error: {self.mysql_table}')
         except ValueError as exc:
-            logger.warn(exc)
+            logger_trades.warn(exc)
 
         return None, None, None
 
 
-    def __del__(self):
-        self.db.close()
+    # def __del__(self):
+    #     self.db.close()

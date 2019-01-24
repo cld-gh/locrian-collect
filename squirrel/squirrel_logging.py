@@ -27,4 +27,5 @@ def get_logger(logger_file, log_name):
     return h_logger
 
 
-logger = get_logger(f'{BASE_DATA_DIRECTORY}/squirrel.log', log_name='squirrel')
+logger_trades = get_logger(f'{BASE_DATA_DIRECTORY}/squirrel.log', log_name='squirrel_trades')
+logger_order_book = get_logger(f'{BASE_DATA_DIRECTORY}/squirrel.log', log_name='squirrel_order_book')
