@@ -25,7 +25,11 @@ class TradesManager:
             return
 
         for row in result:
-            if self.check_tid(row['tid']):
+            try:
+                if self.check_tid(row['tid']):
+                    continue
+            except KeyError as ex:
+                logger_trades.warn(f'Error no tid, {row}  |  {ex}')
                 continue
             self.add_row_to_mysql(request_time, return_time, row)
 
@@ -63,7 +67,3 @@ class TradesManager:
             logger_trades.warn(exc)
 
         return None, None, None
-
-
-    # def __del__(self):
-    #     self.db.close()

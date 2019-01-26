@@ -3,8 +3,8 @@ import time
 import MySQLdb
 import json
 
-from ..constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
-from ..squirrel_logging import logger_order_book
+from ..constants import NANOSECOND_FACTOR
+from ..squirrel_logging import logger_order_book, logger_index
 
 
 def _connect_to_mysql():
@@ -36,7 +36,6 @@ class BaseOrderBookManager:
                         f"Values ({request_time}, {return_time}, {row})")
         self.execute_query(insert_query)
         self.db.commit()
-        print(self.mysql_table)
 
     def execute_query(self, query):
         if not self.db.open:
@@ -71,8 +70,8 @@ class OrderBookManager(BaseOrderBookManager):
 
         if 'ask' not in f'{result}' or 'bid' not in f'{result}' or '[]' in f'{result}':
             logger_order_book.warn(f'Error {self.mysql_table}: {result}')
-
-        self.add_row_to_mysql(request_time, return_time, result)
+        else:
+            self.add_row_to_mysql(request_time, return_time, result)
 
 
 class IndexManager(BaseOrderBookManager):
@@ -81,5 +80,10 @@ class IndexManager(BaseOrderBookManager):
         self.col_name = 'future_index'
 
     def filter_results(self, request_time, return_time, result):
-        result = result['future_index']
+        try:
+            result = result['future_index']
+        except KeyError:
+            logger_index.warn(f'Error {self.mysql_table}: {result}')
+            return
+
         self.add_row_to_mysql(request_time, return_time, result)

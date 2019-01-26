@@ -38,21 +38,19 @@ def schedule_get_trades():
         raise ValueError("Number of requests per second exceeds Okcoin's "
                          "limits (1 request every 0.1 seconds)")
 
+    db_manager_list = get_mysql_objects()
+
     while True:
-        # close and open mysql connection periodically to keep connection from hanging.
-        del db_manager_list[:]
-        db_manager_list = get_mysql_objects()
-        for _i in range(100):
-            time.sleep(delta_time_to_sleep(interval=time_between_requests))
-            logger_trades.info(f'Requesting trades. {_i}')
-            thread_list = []
-            for i in range(list_length):
-                thread_list.append(Thread(target=db_manager_list[i].get_trades))
-            for i in range(list_length):
-                thread_list[i].start()
-            for i in range(list_length):
-                thread_list[i].join()
-            del thread_list
+        time.sleep(delta_time_to_sleep(interval=time_between_requests))
+        logger_trades.info(f'Requesting trades.')
+        thread_list = []
+        for i in range(list_length):
+            thread_list.append(Thread(target=db_manager_list[i].get_trades))
+        for i in range(list_length):
+            thread_list[i].start()
+        for i in range(list_length):
+            thread_list[i].join()
+        del thread_list
 
 
 def delta_time_to_sleep(interval=10):
