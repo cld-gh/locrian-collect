@@ -3,7 +3,7 @@ from threading import Thread
 
 from ..constants import CONTRACT_LIST, CURRENCY_LIST
 from .order_book_manager import OrderBookManager, IndexManager
-from ..squirrel_logging import logger_order_book
+from ..locrian_collect_logging import logger_order_book
 
 
 def get_managers():

@@ -4,7 +4,7 @@ import MySQLdb
 import json
 
 from ..constants import NANOSECOND_FACTOR
-from ..squirrel_logging import logger_order_book, logger_index
+from ..locrian_collect_logging import logger_order_book, logger_index
 
 
 def _connect_to_mysql():

@@ -4,7 +4,7 @@ from threading import Thread
 from .constants import BASE_URL_FUTURE, BASE_URL_SPOT
 from locrian_collect.constants import CURRENCY_LIST, CONTRACT_LIST
 from .trades_manager import TradesManager
-from ..squirrel_logging import logger_trades
+from ..locrian_collect_logging import logger_trades
 
 
 def get_urls_and_mysql_tables():
