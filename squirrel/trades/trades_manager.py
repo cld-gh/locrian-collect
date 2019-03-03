@@ -31,6 +31,8 @@ class TradesManager:
             except KeyError as ex:
                 logger_trades.warn(f'Error no tid, {row}  |  {ex}')
                 continue
+            except TypeError as ex:
+                logger_trades.warn(f'Error - tid type {row} | {ex}')
             self.add_row_to_mysql(request_time, return_time, row)
 
     def check_tid(self, tid):

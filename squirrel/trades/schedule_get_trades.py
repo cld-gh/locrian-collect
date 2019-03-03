@@ -55,4 +55,4 @@ def schedule_get_trades():
 
 def delta_time_to_sleep(interval=10):
     delta = interval - time.time() % interval
-    return delta
+    return delta + 0.1
