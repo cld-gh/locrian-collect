@@ -1,6 +1,6 @@
 import logging
 
-from squirrel.constants import BASE_DATA_DIRECTORY
+from locrian_collect.constants import BASE_DATA_DIRECTORY
 
 
 def get_logger(logger_file, log_name):

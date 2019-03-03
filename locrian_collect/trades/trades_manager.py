@@ -2,7 +2,7 @@ import time
 import requests
 import MySQLdb
 
-from squirrel.constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
+from locrian_collect.constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
 from ..squirrel_logging import logger_trades
 
 

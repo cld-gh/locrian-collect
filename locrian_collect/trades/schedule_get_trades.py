@@ -2,7 +2,7 @@ import time
 from threading import Thread
 
 from .constants import BASE_URL_FUTURE, BASE_URL_SPOT
-from squirrel.constants import CURRENCY_LIST, CONTRACT_LIST
+from locrian_collect.constants import CURRENCY_LIST, CONTRACT_LIST
 from .trades_manager import TradesManager
 from ..squirrel_logging import logger_trades
 
