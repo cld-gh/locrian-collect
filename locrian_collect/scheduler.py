@@ -1,8 +1,8 @@
 import time
 from threading import Thread
 
-from locrian_collect.data_managers import get_trades_managers, get_managers
-from .locrian_collect_logging import logger_trades, logger_order_book
+from .data_managers import get_trades_managers, get_managers
+from .logs import logger_trades, logger_order_book
 
 PARAMS_MAP = {'trades': {'managers': get_trades_managers(),
                          'time_between_requests': 100,  # seconds

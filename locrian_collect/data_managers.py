@@ -3,9 +3,10 @@ import time
 import MySQLdb
 import json
 
-from locrian_collect.constants import CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES
+from locrian_collect.constants import CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES, \
+    BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH
 from .constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
-from .locrian_collect_logging import logger_order_book, logger_index, logger_trades
+from .logs import logger_order_book, logger_index, logger_trades
 
 
 def _connect_to_mysql(database_name):
@@ -155,13 +156,13 @@ def get_managers():
     managers = []
     for currency in CURRENCY_LIST:
         managers.append(OrderBookManager(mysql_table=f'spot_{currency}_usd_orderbook',
-                                         url=f'https://www.okcoin.com/api/v1/depth.do?symbol={currency}_usd'))
+                                         url=f'{BASE_URL_SPOT_DEPTH}?symbol={currency}_usd'))
 
         managers.append(IndexManager(mysql_table=f'future_index_{currency}_usd',
-                                     url=f'https://www.okex.com/api/v1/future_index.do?symbol={currency}_usd'))
+                                     url=f'{BASE_URL_INDEX}?symbol={currency}_usd'))
 
         for contract in CONTRACT_LIST:
-            url = f'https://www.okex.com/api/v1/future_depth.do?symbol={currency}_usd&contract_type={contract}&size=50'
+            url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=50'
             managers.append(OrderBookManager(mysql_table=f'future_{currency}_usd_{contract}_orderbook', url=url))
 
     return managers
