@@ -1,4 +1,4 @@
-from locrian_collect.order_book.schedule_get_order_book import schedule_get_order_book
+from locrian_collect.schedule_get_order_book import schedule_get_order_book
 
 
 schedule_get_order_book()

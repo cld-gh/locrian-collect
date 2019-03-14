@@ -2,8 +2,8 @@ import time
 import requests
 import MySQLdb
 
-from locrian_collect.constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
-from ..locrian_collect_logging import logger_trades
+from .constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
+from .locrian_collect_logging import logger_trades
 
 
 def _connect_to_mysql():
