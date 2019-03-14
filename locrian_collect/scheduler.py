@@ -8,11 +8,13 @@ PARAMS_MAP = {'trades': {'managers': get_trades_managers(),
                          'time_between_requests': 100,  # seconds
                          'logger': logger_trades,
                          'log_msg': 'Requesting trades.',
+                         'offset': 0.1
                          },
               'order_book': {'managers': get_managers(),
                              'time_between_requests': 10,  # seconds
                              'logger': logger_order_book,
-                             'log_msg': 'Requesting order book and futures index.'
+                             'log_msg': 'Requesting order book and futures index.',
+                             'offset': 0.001
                              }}
 
 
@@ -23,6 +25,7 @@ def scheduler(data_to_record):
     time_between_requests = params['time_between_requests']
     logger = params['logger']
     log_msg = params['log_msg']
+    offset = params['offset']
 
     num_managers = len(db_managers)
 
@@ -31,7 +34,7 @@ def scheduler(data_to_record):
                          "limits (1 request every 0.1 seconds)")
 
     while True:
-        time.sleep(delta_time_to_sleep(interval=time_between_requests))
+        time.sleep(delta_time_to_sleep(interval=time_between_requests, offset=offset))
         logger.info(log_msg)
         thread_list = []
         for database_manager in db_managers:
@@ -43,7 +46,22 @@ def scheduler(data_to_record):
         del thread_list
 
 
-def delta_time_to_sleep(interval=10):
+def delta_time_to_sleep(interval=10, offset=0):
+    """Time between now and the next timestamp where the
+    timestamp modulo interval is zero
+
+    Parameters
+    ----------
+    interval: float
+        The time interval between samples.
+    offset: float
+        The amount of time extra to sleep for.
+
+    Returns
+    -------
+    float:
+        The amount of time to sleep in seconds.
+    """
     delta = interval - time.time() % interval
-    return delta + 0.1
+    return delta + offset
 
