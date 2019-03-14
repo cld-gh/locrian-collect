@@ -1,4 +1,4 @@
-from locrian_collect.trades.schedule_get_trades import schedule_get_trades
+from locrian_collect.scheduler import scheduler
 
 
-schedule_get_trades()
+scheduler(data_to_record='trades')
