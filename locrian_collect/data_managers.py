@@ -3,9 +3,9 @@ import time
 import MySQLdb
 import json
 
-from locrian_collect.constants import CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES, \
-    BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH
-from .constants import NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS
+from .constants import (CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
+                        BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH,
+                        NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS)
 from .logs import logger_order_book, logger_index, logger_trades
 
 
