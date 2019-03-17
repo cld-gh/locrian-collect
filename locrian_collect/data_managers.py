@@ -1,7 +1,10 @@
-import requests
+"""
+Data Managers that control the collection and storage of data from an exchange to a database.
+"""
 import time
-import MySQLdb
 import json
+import requests
+import MySQLdb
 
 from .constants import (CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
                         BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH,
@@ -10,11 +13,35 @@ from .logs import logger_order_book, logger_index, logger_trades
 
 
 def _connect_to_mysql(database_name):
+    """Connect to a mysql database
+
+    Parameters
+    ----------
+    database_name: str
+        Name of the database to connect to.
+
+    Returns
+    -------
+    Connection to MySQLdb.
+
+    """
     return MySQLdb.connect('localhost', 'monitor2', 'password', database_name,
                            unix_socket='/var/run/mysqld/mysqld.sock')
 
 
 class BaseManager:
+    """Base class for managers.
+
+    Parameters
+    ----------
+    mysql_table: str
+        The name of the table to connect with.
+    url: str
+        The url of the exchange to connect with.
+    database_name: str
+        The name of the database.
+
+    """
     def __init__(self, mysql_table, url, database_name):
         self.database_name = database_name
         self.db = _connect_to_mysql(self.database_name)
@@ -24,6 +51,7 @@ class BaseManager:
         self.col_name = None
 
     def get_data(self):
+        """Helper function to get data and save the results after filtering."""
         request_time, return_time, result = self._request_data()
 
         if result is None:
@@ -32,21 +60,46 @@ class BaseManager:
         self.filter_results(request_time, return_time, result)
 
     def filter_results(self, request_time, return_time, result):
+        """Filter results not implemented in the base class."""
         raise NotImplementedError
 
     def add_row_to_mysql(self, request_time, return_time, row):
-        insert_query = (f'INSERT INTO {self.mysql_table} (unixRequestTime, unixReturnTime, {self.col_name}) '
+        """Insert a row into the mysql database.
+
+        Parameters
+        ----------
+        request_time: int
+            The unix time in nanoseconds the request was made.
+        return_time: int
+            The unix time in nanoseconds the data was returned from the request.
+        row: str
+            A json formatted string of the data to record.
+        """
+        insert_query = (f'INSERT INTO {self.mysql_table} '
+                        f'(unixRequestTime, unixReturnTime, {self.col_name}) '
                         f"Values ({request_time}, {return_time}, {row})")
         self.execute_query(insert_query)
         self.db.commit()
 
     def execute_query(self, query):
+        """Execute a database query.
+
+        Parameters
+        ----------
+        query: str
+            A SQL query to be executed
+
+        Returns
+        -------
+        Result of the SQL query.
+        """
         if not self.db.open:
             self.db = _connect_to_mysql(self.database_name)
             self.curs = self.db.cursor()
         return self.curs.execute(query)
 
     def _request_data(self):
+        """Make a REST request to the url."""
         try:
             request_time = int(time.time() * NANOSECOND_FACTOR)
             result = (requests.get(self.url, timeout=8)).json()
@@ -58,17 +111,38 @@ class BaseManager:
         except RuntimeError:
             logger_order_book.warn(f'Runtime error: {self.mysql_table}')
         except ValueError as exc:
-            logger_order_book.warn(exc)
+            logger_order_book.warn(f'{exc}')
 
         return None, None, None
 
 
 class OrderBookManager(BaseManager):
+    """Manager for collecting and saving order book data between an exchange and a database.
+
+    Parameters
+    ----------
+    mysql_table: str
+        Name of the database table to connect with.
+    url: str
+        The exchanges url for requesting data.
+    """
     def __init__(self, mysql_table, url):
         super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
         self.col_name = 'orderBook'
 
     def filter_results(self, request_time, return_time, result):
+        """Filter the results and save the result to the database.
+
+        If the data does not have both bids and asks data do not record anything and log a warning.
+
+        Parameters
+        ----------
+        request_time: int
+            The unix time in nanoseconds the request was made.
+        return_time: int
+            The unix time in nanoseconds the data was returned from the request.
+        result: The data returned by a REST request.
+        """
         result = f"'{json.dumps(result)}'"
 
         if 'ask' not in f'{result}' or 'bid' not in f'{result}' or '[]' in f'{result}':
@@ -78,11 +152,32 @@ class OrderBookManager(BaseManager):
 
 
 class IndexManager(BaseManager):
+    """Manager for collecting and saving futures index data between an exchange and a database.
+
+    Parameters
+    ----------
+    mysql_table: str
+        Name of the database table to connect with.
+    url: str
+        The exchanges url for requesting data.
+    """
     def __init__(self, mysql_table, url):
         super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
         self.col_name = 'future_index'
 
     def filter_results(self, request_time, return_time, result):
+        """Filter the results and save the result to the database.
+
+        If the data does not have future_index as a key do not save the data.
+
+        Parameters
+        ----------
+        request_time: int
+            The unix time in nanoseconds the request was made.
+        return_time: int
+            The unix time in nanoseconds the data was returned from the request.
+        result: The data returned by a REST request.
+        """
         try:
             result = result['future_index']
         except KeyError:
@@ -93,10 +188,22 @@ class IndexManager(BaseManager):
 
 
 class TradesManager(BaseManager):
+    """Manager for collecting and saving trades data between an exchange and a database.
+
+    Parameters
+    ----------
+    mysql_table: str
+        Name of the database table to connect with.
+    url: str
+        The exchanges url for requesting data.
+    """
     def __init__(self, mysql_table, url):
         super().__init__(mysql_table=mysql_table, url=url, database_name='crypto_trades')
 
     def get_data(self):
+        """Override the BaseManager method. Get data from the exchange and check if that data.
+        Already exists in the database before saving."""
+
         request_time, return_time, result = self._request_data()
 
         if result is None:
@@ -106,18 +213,30 @@ class TradesManager(BaseManager):
             try:
                 if self.check_tid(row['tid']):
                     continue
-            except KeyError as ex:
-                logger_trades.warn(f'Error no tid, {row}  |  {ex}')
+            except KeyError as exception_msg:
+                logger_trades.warn(f'Error no tid, {row}  |  {exception_msg}')
                 continue
-            except TypeError as ex:
-                logger_trades.warn(f'Error - tid type {row} | {ex}')
+            except TypeError as exception_msg:
+                logger_trades.warn(f'Error - tid type {row} | {exception_msg}')
             self.add_row_to_mysql(request_time, return_time, row)
 
     def check_tid(self, tid):
+        """Get all the trade identifiers from the database."""
         query = f'SELECT tid FROM {self.mysql_table} where tid={tid}'
         return self.execute_query(query)
 
     def add_row_to_mysql(self, request_time, return_time, row):
+        """Override the BaseManager method. Insert a row into the mysql database.
+
+        Parameters
+        ----------
+        request_time: int
+            The unix time in nanoseconds the request was made.
+        return_time: int
+            The unix time in nanoseconds the data was returned from the request.
+        row: dict
+            Dictionary of the data columns to save.
+        """
         trade_ts = row['date_ms']*MILLISECONDS_TO_NANOSECONDS
         insert_query = (f'INSERT IGNORE INTO {self.mysql_table} '
                         f'(unixRequestTime, unixReturnTime, trade_time, amount, price, side, tid) '
@@ -126,23 +245,29 @@ class TradesManager(BaseManager):
         self.execute_query(insert_query)
         self.db.commit()
 
-    def filter_results(self, *args):
-        # Trades Manager does not use this function
+    def filter_results(self, request_time, return_time, result):
+        """Trades Manager does not use this function"""
         raise NotImplementedError
 
 
 def trades_url_mysql_maps():
+    """Return a list of dicts where the dicts have information for the mysql_table and url
+    to get the data."""
     assets = []
     for currency in CURRENCY_LIST:
         assets.append({'mysql_table': f'trades_spot_{currency}',
                        'url': f'{BASE_URL_SPOT_TRADES}?symbol={currency}_usd'})
         for contract in CONTRACT_LIST:
-            assets.append({'mysql_table': f'trades_future_{contract}_{currency}',
-                           'url': f'{BASE_URL_FUTURE_TRADES}?symbol={currency}_usd&contract_type={contract}'})
+            assets.append({
+                'mysql_table':
+                    f'trades_future_{contract}_{currency}',
+                'url':
+                    f'{BASE_URL_FUTURE_TRADES}?symbol={currency}_usd&contract_type={contract}'})
     return assets
 
 
 def get_trades_managers():
+    """Get a list of Trades Managers"""
     assets = trades_url_mysql_maps()
 
     trades_managers = []
@@ -153,6 +278,7 @@ def get_trades_managers():
 
 
 def get_managers():
+    """Get a list of Managers for order books and future indexes."""
     managers = []
     for currency in CURRENCY_LIST:
         managers.append(OrderBookManager(mysql_table=f'spot_{currency}_usd_orderbook',
@@ -163,6 +289,8 @@ def get_managers():
 
         for contract in CONTRACT_LIST:
             url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=50'
-            managers.append(OrderBookManager(mysql_table=f'future_{currency}_usd_{contract}_orderbook', url=url))
+            managers.append(
+                OrderBookManager(mysql_table=f'future_{currency}_usd_{contract}_orderbook',
+                                 url=url))
 
     return managers
