@@ -1,3 +1,6 @@
+"""
+Loggers for locrian_collection
+"""
 import logging
 
 from locrian_collect.constants import BASE_DATA_DIRECTORY
@@ -11,22 +14,25 @@ def get_logger(logger_file, log_name):
     if h_logger.handlers:
         h_logger.handlers = []
 
-    fh = logging.FileHandler(logger_file)
-    fh.setLevel(logging.DEBUG)
+    file_handler = logging.FileHandler(logger_file)
+    file_handler.setLevel(logging.DEBUG)
 
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter(f'[%(asctime)s : %(name)s : %(levelname)s]  %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    stream_handler.setFormatter(formatter)
 
-    h_logger.addHandler(fh)
-    h_logger.addHandler(ch)
+    h_logger.addHandler(file_handler)
+    h_logger.addHandler(stream_handler)
 
     return h_logger
 
 
-logger_trades = get_logger(f'{BASE_DATA_DIRECTORY}/locrian_collect.log', log_name='locrian_collect_trades')
-logger_order_book = get_logger(f'{BASE_DATA_DIRECTORY}/locrian_collect.log', log_name='locrian_collect_order_book')
-logger_index = get_logger(f'{BASE_DATA_DIRECTORY}/locrian_collect.log', log_name='locrian_collect_index')
+logger_trades = get_logger(f'{BASE_DATA_DIRECTORY}/locrian_collect.log',
+                           log_name='locrian_collect_trades')
+logger_order_book = get_logger(f'{BASE_DATA_DIRECTORY}/locrian_collect.log',
+                               log_name='locrian_collect_order_book')
+logger_index = get_logger(f'{BASE_DATA_DIRECTORY}/locrian_collect.log',
+                          log_name='locrian_collect_index')

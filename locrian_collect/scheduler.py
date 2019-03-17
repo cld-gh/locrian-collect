@@ -1,3 +1,6 @@
+"""
+Schedule the collection of data.
+"""
 import time
 from threading import Thread
 
@@ -19,6 +22,14 @@ PARAMS_MAP = {'trades': {'managers': get_trades_managers(),
 
 
 def scheduler(data_to_record):
+    """Schedule the recording of data (order book, index or trades).
+
+    Parameters
+    ----------
+    data_to_record: str
+        The type of data to record, either 'order_book' or 'trades'
+
+    """
     params = PARAMS_MAP[data_to_record]
 
     db_managers = params['managers']
@@ -37,16 +48,20 @@ def scheduler(data_to_record):
         time.sleep(delta_time_to_sleep(interval=time_between_requests, offset=offset))
         logger.info(log_msg)
         thread_list = []
+
         for database_manager in db_managers:
             thread_list.append(Thread(target=database_manager.get_data))
-        for i in range(num_managers):
-            thread_list[i].start()
-        for i in range(num_managers):
-            thread_list[i].join()
+
+        for thread in thread_list:
+            thread.start()
+
+        for thread in thread_list:
+            thread.join()
+
         del thread_list
 
 
-def delta_time_to_sleep(interval=10, offset=0):
+def delta_time_to_sleep(interval, offset):
     """Time between now and the next timestamp where the
     timestamp modulo interval is zero
 
@@ -64,4 +79,3 @@ def delta_time_to_sleep(interval=10, offset=0):
     """
     delta = interval - time.time() % interval
     return delta + offset
-
