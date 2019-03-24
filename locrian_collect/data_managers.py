@@ -5,10 +5,13 @@ import time
 import json
 import requests
 import MySQLdb
+import pandas as pd
+import sqlalchemy
 
 from .constants import (CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
                         BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH,
-                        NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS)
+                        NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS,
+                        Side, ORDER_MAP)
 from .logs import logger_order_book, logger_index, logger_trades
 
 
@@ -27,6 +30,22 @@ def _connect_to_mysql(database_name):
     """
     return MySQLdb.connect('localhost', 'monitor2', 'password', database_name,
                            unix_socket='/var/run/mysqld/mysqld.sock')
+
+
+def _get_sqlalchemy_engine(database_name='locrian_level_two'):
+    """Get Sqlalchemy engine
+
+    Parameters
+    ----------
+    database_name: str
+        Name of the database to connect to.
+
+    Returns
+    -------
+    Engine for sqlalchemy.
+
+    """
+    return sqlalchemy.create_engine(f'mysql://monitor2:password@localhost:3306/{database_name}?unix_socket=/var/run/mysqld/mysqld.sock')
 
 
 class BaseManager:
@@ -126,9 +145,10 @@ class OrderBookManager(BaseManager):
     url: str
         The exchanges url for requesting data.
     """
-    def __init__(self, mysql_table, url):
+    def __init__(self, asset_name, mysql_table, url):
         super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
         self.col_name = 'orderBook'
+        self.asset_name = asset_name
 
     def filter_results(self, request_time, return_time, result):
         """Filter the results and save the result to the database.
@@ -143,12 +163,45 @@ class OrderBookManager(BaseManager):
             The unix time in nanoseconds the data was returned from the request.
         result: The data returned by a REST request.
         """
+        book = result
         result = f"'{json.dumps(result)}'"
 
         if 'ask' not in f'{result}' or 'bid' not in f'{result}' or '[]' in f'{result}':
             logger_order_book.warn(f'Error {self.mysql_table}: {result}')
         else:
             self.add_row_to_mysql(request_time, return_time, result)
+            self.add_book_to_db(request_time, book)
+
+    def add_book_to_db(self, timestamp, book):
+        """Add level two book to database.
+
+        Parameters
+        ----------
+        timestamp: int
+            The unix time in nanoseconds the request was made.
+        book: dict
+            The level two book as a dict; {'side': [price, volume]}
+        """
+        data = []
+        for side in book:
+            try:
+                ordering = ORDER_MAP[Side[side]]
+            except KeyError as key_error:
+                print(side, book, timestamp)
+                raise KeyError(key_error)
+
+            levels = book[side][::ordering]
+            side_as_value = Side[side].value
+
+            for level_index, level in enumerate(levels, 1):
+                price = level[0]
+                volume = level[1]
+                data.append([timestamp, side_as_value, level_index, price, volume])
+
+        out = pd.DataFrame(data, columns=['timestamp', 'side', 'level', 'price', 'volume'])
+        engine = _get_sqlalchemy_engine('locrian_level_two')
+        out.to_sql(self.asset_name, engine, if_exists='append', index=False)
+        engine.dispose()
 
 
 class IndexManager(BaseManager):
@@ -281,7 +334,8 @@ def get_managers():
     """Get a list of Managers for order books and future indexes."""
     managers = []
     for currency in CURRENCY_LIST:
-        managers.append(OrderBookManager(mysql_table=f'spot_{currency}_usd_orderbook',
+        managers.append(OrderBookManager(asset_name=f'spot_{currency}',
+                                         mysql_table=f'spot_{currency}_usd_orderbook',
                                          url=f'{BASE_URL_SPOT_DEPTH}?symbol={currency}_usd'))
 
         managers.append(IndexManager(mysql_table=f'future_index_{currency}_usd',
@@ -290,7 +344,8 @@ def get_managers():
         for contract in CONTRACT_LIST:
             url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=50'
             managers.append(
-                OrderBookManager(mysql_table=f'future_{currency}_usd_{contract}_orderbook',
+                OrderBookManager(asset_name=f'future_{currency}_{contract}',
+                                 mysql_table=f'future_{currency}_usd_{contract}_orderbook',
                                  url=url))
 
     return managers
