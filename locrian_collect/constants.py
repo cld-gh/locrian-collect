@@ -1,6 +1,16 @@
 """
 Constants used in locrian_collect
 """
+from enum import Enum
+
+
+class Side(Enum):
+    """Enum of the trade side; either ask or bid."""
+    asks = ask = 1
+    bids = bid = 2
+
+
+ORDER_MAP = {Side.ask: -1, Side.bid: 1}
 
 BASE_DATA_DIRECTORY = '/home/chris/locrian/data'
 NANOSECOND_FACTOR = 1000000000
