@@ -182,26 +182,44 @@ class OrderBookManager(BaseManager):
         book: dict
             The level two book as a dict; {'side': [price, volume]}
         """
-        data = []
-        for side in book:
-            try:
-                ordering = ORDER_MAP[Side[side]]
-            except KeyError as key_error:
-                print(side, book, timestamp)
-                raise KeyError(key_error)
-
-            levels = book[side][::ordering]
-            side_as_value = Side[side].value
-
-            for level_index, level in enumerate(levels, 1):
-                price = level[0]
-                volume = level[1]
-                data.append([timestamp, side_as_value, level_index, price, volume])
-
-        out = pd.DataFrame(data, columns=['timestamp', 'side', 'level', 'price', 'volume'])
+        level_two_book = _parse_level_two_book(timestamp, book)
         engine = _get_sqlalchemy_engine('locrian_level_two')
-        out.to_sql(self.asset_name, engine, if_exists='append', index=False)
+        level_two_book.to_sql(self.asset_name, engine, if_exists='append', index=False)
         engine.dispose()
+
+
+def _parse_level_two_book(timestamp, book):
+    """Parse level two book from json returned by exchange to level two dataframe.
+
+    Parameters
+    ----------
+    timestamp: int
+        The unix time in nanoseconds the request was made.
+    book: dict
+        The level two book as a dict; {'side': [price, volume]}
+
+    Returns
+    -------
+    pd.DataFame
+        Level two book as a pandas dataframe.
+    """
+    data = []
+    for side in book:
+        try:
+            ordering = ORDER_MAP[Side[side]]
+        except KeyError as key_error:
+            print(side, book, timestamp)
+            raise KeyError(key_error)
+
+        levels = book[side][::ordering]
+        side_as_value = Side[side].value
+
+        for level_index, level in enumerate(levels, 1):
+            price = level[0]
+            volume = level[1]
+            data.append([timestamp, side_as_value, level_index, price, volume])
+
+    return pd.DataFrame(data, columns=['timestamp', 'side', 'level', 'price', 'volume'])
 
 
 class IndexManager(BaseManager):
@@ -342,7 +360,7 @@ def get_managers():
                                      url=f'{BASE_URL_INDEX}?symbol={currency}_usd'))
 
         for contract in CONTRACT_LIST:
-            url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=50'
+            url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=200'
             managers.append(
                 OrderBookManager(asset_name=f'future_{currency}_{contract}',
                                  mysql_table=f'future_{currency}_usd_{contract}_orderbook',
