@@ -82,24 +82,6 @@ class BaseManager:
         """Filter results not implemented in the base class."""
         raise NotImplementedError
 
-    def add_row_to_mysql(self, request_time, return_time, row):
-        """Insert a row into the mysql database.
-
-        Parameters
-        ----------
-        request_time: int
-            The unix time in nanoseconds the request was made.
-        return_time: int
-            The unix time in nanoseconds the data was returned from the request.
-        row: str
-            A json formatted string of the data to record.
-        """
-        insert_query = (f'INSERT INTO {self.mysql_table} '
-                        f'(unixRequestTime, unixReturnTime, {self.col_name}) '
-                        f"Values ({request_time}, {return_time}, {row})")
-        self.execute_query(insert_query)
-        self.db.commit()
-
     def execute_query(self, query):
         """Execute a database query.
 
@@ -112,6 +94,8 @@ class BaseManager:
         -------
         Result of the SQL query.
         """
+        self.curs.close()
+        self.db.close()
         if not self.db.open:
             self.db = _connect_to_mysql(self.database_name)
             self.curs = self.db.cursor()
@@ -169,7 +153,6 @@ class OrderBookManager(BaseManager):
         if 'ask' not in f'{result}' or 'bid' not in f'{result}' or '[]' in f'{result}':
             logger_order_book.warn(f'Error {self.mysql_table}: {result}')
         else:
-            self.add_row_to_mysql(request_time, return_time, result)
             self.add_book_to_db(request_time, book)
 
     def add_book_to_db(self, timestamp, book):
@@ -236,6 +219,24 @@ class IndexManager(BaseManager):
         super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
         self.col_name = 'future_index'
 
+    def add_row_to_mysql(self, request_time, return_time, row):
+        """Insert a row into the mysql database.
+
+        Parameters
+        ----------
+        request_time: int
+            The unix time in nanoseconds the request was made.
+        return_time: int
+            The unix time in nanoseconds the data was returned from the request.
+        row: str
+            A json formatted string of the data to record.
+        """
+        insert_query = (f'INSERT INTO {self.mysql_table} '
+                        f'(unixRequestTime, unixReturnTime, {self.col_name}) '
+                        f"Values ({request_time}, {return_time}, {row})")
+        self.execute_query(insert_query)
+        self.db.commit()
+
     def filter_results(self, request_time, return_time, result):
         """Filter the results and save the result to the database.
 
@@ -297,7 +298,7 @@ class TradesManager(BaseManager):
         return self.execute_query(query)
 
     def add_row_to_mysql(self, request_time, return_time, row):
-        """Override the BaseManager method. Insert a row into the mysql database.
+        """Insert a row into the mysql database.
 
         Parameters
         ----------
