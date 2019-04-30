@@ -94,6 +94,8 @@ class BaseManager:
         -------
         Result of the SQL query.
         """
+        self.curs.close()
+        self.db.close()
         if not self.db.open:
             self.db = _connect_to_mysql(self.database_name)
             self.curs = self.db.cursor()
