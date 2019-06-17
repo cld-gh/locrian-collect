@@ -4,7 +4,6 @@ Test the scheduling of collecting data.
 import pytest
 
 from locrian_collect.scheduler import scheduler, delta_time_to_sleep
-from ..mock.utils import mock_func_return
 
 
 class MockLogger:
@@ -72,8 +71,8 @@ def test_scheduler_to_many_requests(monkeypatch):
     [10, 0.1, 5.1],
     [2, 0.03, 1.03]
 ))
-def test_delta_time_to_sleep(interval, offset, expected, monkeypatch):
+def test_delta_time_to_sleep(interval, offset, expected, monkeypatch, mocker):
     """Test the time to sleep is as expected."""
-    monkeypatch.setattr('locrian_collect.scheduler.time.time', mock_func_return(12345))
+    mocker.patch('locrian_collect.scheduler.time.time', return_value=12345)
     result = delta_time_to_sleep(interval, offset)
     assert result == expected

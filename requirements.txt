@@ -4,4 +4,7 @@ pandas
 h5py
 matplotlib
 pytest
+pytest-mock
 anaconda
+requests
+sqlalchemy

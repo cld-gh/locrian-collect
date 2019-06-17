@@ -3,33 +3,15 @@ Data Managers that control the collection and storage of data from an exchange t
 """
 import time
 import json
+
 import requests
-import MySQLdb
-import pandas as pd
 import sqlalchemy
+from sqlalchemy import text
 
-from .constants import (CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
-                        BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH,
-                        NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS,
-                        Side, ORDER_MAP)
+from .parse_level_two_book import parse_level_two_book
+from .constants import (NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS,
+                        UNIX_SOCKET)
 from .logs import logger_order_book, logger_index, logger_trades
-
-
-def _connect_to_mysql(database_name):
-    """Connect to a mysql database
-
-    Parameters
-    ----------
-    database_name: str
-        Name of the database to connect to.
-
-    Returns
-    -------
-    Connection to MySQLdb.
-
-    """
-    return MySQLdb.connect('localhost', 'monitor2', 'password', database_name,
-                           unix_socket='/var/run/mysqld/mysqld.sock')
 
 
 def _get_sqlalchemy_engine(database_name='locrian_level_two'):
@@ -45,7 +27,12 @@ def _get_sqlalchemy_engine(database_name='locrian_level_two'):
     Engine for sqlalchemy.
 
     """
-    return sqlalchemy.create_engine(f'mysql://monitor2:password@localhost:3306/{database_name}?unix_socket=/var/run/mysqld/mysqld.sock')
+    host = 'localhost'
+    user = 'monitor2'
+    password = 'password'
+
+    return sqlalchemy.create_engine(
+        f'mysql://{user}:{password}@{host}:3306/{database_name}?unix_socket={UNIX_SOCKET}')
 
 
 class BaseManager:
@@ -63,8 +50,6 @@ class BaseManager:
     """
     def __init__(self, mysql_table, url, database_name):
         self.database_name = database_name
-        self.db = _connect_to_mysql(self.database_name)
-        self.curs = self.db.cursor()
         self.mysql_table = mysql_table
         self.url = url
         self.col_name = None
@@ -82,24 +67,16 @@ class BaseManager:
         """Filter results not implemented in the base class."""
         raise NotImplementedError
 
-    def execute_query(self, query):
-        """Execute a database query.
+    def execute_query_write(self, query):
+        engine = _get_sqlalchemy_engine(self.database_name)
+        engine.execute(text(query).execution_options(autocommit=True))
+        engine.dispose()
 
-        Parameters
-        ----------
-        query: str
-            A SQL query to be executed
-
-        Returns
-        -------
-        Result of the SQL query.
-        """
-        self.curs.close()
-        self.db.close()
-        if not self.db.open:
-            self.db = _connect_to_mysql(self.database_name)
-            self.curs = self.db.cursor()
-        return self.curs.execute(query)
+    def execute_query_read(self, query):
+        engine = _get_sqlalchemy_engine(self.database_name)
+        result = engine.execute(text(query)).fetchall()
+        engine.dispose()
+        return result
 
     def _request_data(self):
         """Make a REST request to the url."""
@@ -165,44 +142,10 @@ class OrderBookManager(BaseManager):
         book: dict
             The level two book as a dict; {'side': [price, volume]}
         """
-        level_two_book = _parse_level_two_book(timestamp, book)
+        level_two_book = parse_level_two_book(timestamp, book)
         engine = _get_sqlalchemy_engine('locrian_level_two')
         level_two_book.to_sql(self.asset_name, engine, if_exists='append', index=False)
         engine.dispose()
-
-
-def _parse_level_two_book(timestamp, book):
-    """Parse level two book from json returned by exchange to level two dataframe.
-
-    Parameters
-    ----------
-    timestamp: int
-        The unix time in nanoseconds the request was made.
-    book: dict
-        The level two book as a dict; {'side': [price, volume]}
-
-    Returns
-    -------
-    pd.DataFame
-        Level two book as a pandas dataframe.
-    """
-    data = []
-    for side in book:
-        try:
-            ordering = ORDER_MAP[Side[side]]
-        except KeyError as key_error:
-            print(side, book, timestamp)
-            raise KeyError(key_error)
-
-        levels = book[side][::ordering]
-        side_as_value = Side[side].value
-
-        for level_index, level in enumerate(levels, 1):
-            price = level[0]
-            volume = level[1]
-            data.append([timestamp, side_as_value, level_index, price, volume])
-
-    return pd.DataFrame(data, columns=['timestamp', 'side', 'level', 'price', 'volume'])
 
 
 class IndexManager(BaseManager):
@@ -234,8 +177,7 @@ class IndexManager(BaseManager):
         insert_query = (f'INSERT INTO {self.mysql_table} '
                         f'(unixRequestTime, unixReturnTime, {self.col_name}) '
                         f"Values ({request_time}, {return_time}, {row})")
-        self.execute_query(insert_query)
-        self.db.commit()
+        self.execute_query_write(insert_query)
 
     def filter_results(self, request_time, return_time, result):
         """Filter the results and save the result to the database.
@@ -293,9 +235,15 @@ class TradesManager(BaseManager):
             self.add_row_to_mysql(request_time, return_time, row)
 
     def check_tid(self, tid):
-        """Get all the trade identifiers from the database."""
+        """Get all the trade identifiers from the database.
+
+        Returns
+        -------
+        list(tuples)
+            [(`tid`,), ...]
+        """
         query = f'SELECT tid FROM {self.mysql_table} where tid={tid}'
-        return self.execute_query(query)
+        return self.execute_query_read(query)
 
     def add_row_to_mysql(self, request_time, return_time, row):
         """Insert a row into the mysql database.
@@ -314,57 +262,8 @@ class TradesManager(BaseManager):
                         f'(unixRequestTime, unixReturnTime, trade_time, amount, price, side, tid) '
                         f'Values ({request_time}, {return_time}, {trade_ts}, {row["amount"]}, '
                         f'{row["price"]}, "{row["type"]}", {row["tid"]})')
-        self.execute_query(insert_query)
-        self.db.commit()
+        self.execute_query_write(insert_query)
 
     def filter_results(self, request_time, return_time, result):
         """Trades Manager does not use this function"""
         raise NotImplementedError
-
-
-def trades_url_mysql_maps():
-    """Return a list of dicts where the dicts have information for the mysql_table and url
-    to get the data."""
-    assets = []
-    for currency in CURRENCY_LIST:
-        assets.append({'mysql_table': f'trades_spot_{currency}',
-                       'url': f'{BASE_URL_SPOT_TRADES}?symbol={currency}_usd'})
-        for contract in CONTRACT_LIST:
-            assets.append({
-                'mysql_table':
-                    f'trades_future_{contract}_{currency}',
-                'url':
-                    f'{BASE_URL_FUTURE_TRADES}?symbol={currency}_usd&contract_type={contract}'})
-    return assets
-
-
-def get_trades_managers():
-    """Get a list of Trades Managers"""
-    assets = trades_url_mysql_maps()
-
-    trades_managers = []
-    for asset in assets:
-        trades_managers.append(TradesManager(**asset))
-
-    return trades_managers
-
-
-def get_managers():
-    """Get a list of Managers for order books and future indexes."""
-    managers = []
-    for currency in CURRENCY_LIST:
-        managers.append(OrderBookManager(asset_name=f'spot_{currency}',
-                                         mysql_table=f'spot_{currency}_usd_orderbook',
-                                         url=f'{BASE_URL_SPOT_DEPTH}?symbol={currency}_usd'))
-
-        managers.append(IndexManager(mysql_table=f'future_index_{currency}_usd',
-                                     url=f'{BASE_URL_INDEX}?symbol={currency}_usd'))
-
-        for contract in CONTRACT_LIST:
-            url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=200'
-            managers.append(
-                OrderBookManager(asset_name=f'future_{currency}_{contract}',
-                                 mysql_table=f'future_{currency}_usd_{contract}_orderbook',
-                                 url=url))
-
-    return managers

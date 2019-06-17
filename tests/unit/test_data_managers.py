@@ -7,7 +7,8 @@ import requests
 import pytest
 import pandas as pd
 
-from locrian_collect.data_managers import BaseManager, OrderBookManager, _parse_level_two_book
+from locrian_collect.data_managers import BaseManager, OrderBookManager
+from locrian_collect.parse_level_two_book import parse_level_two_book
 
 
 @pytest.fixture
@@ -181,4 +182,4 @@ def test_parse_level_two_book(mock_book):
             10: 0.3856, 11: 0.327, 12: 10.8253, 13: 1.5318, 14: 0.216,
             15: 1.5635, 16: 0.203, 17: 1.8945, 18: 0.275, 19: 1.8672}})
 
-    assert _parse_level_two_book(12345, mock_book).equals(expected)
+    assert parse_level_two_book(12345, mock_book).equals(expected)

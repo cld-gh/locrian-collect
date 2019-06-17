@@ -4,7 +4,7 @@ Schedule the collection of data.
 import time
 from threading import Thread
 
-from .data_managers import get_trades_managers, get_managers
+from .utils import get_trades_managers, get_managers
 from .logs import logger_trades, logger_order_book
 
 PARAMS_MAP = {'trades': {'managers': get_trades_managers(),
@@ -40,7 +40,7 @@ def scheduler(data_to_record):
 
     num_managers = len(db_managers)
 
-    if num_managers/time_between_requests > 10:
+    if num_managers / time_between_requests > 10:
         raise ValueError("Number of requests per second exceeds Okcoin's "
                          "limits (1 request every 0.1 seconds)")
 
