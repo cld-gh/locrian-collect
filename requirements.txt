@@ -1,10 +1,5 @@
-mysqlclient
+anaconda
 numpy
 pandas
-h5py
-matplotlib
-pytest
-pytest-mock
-anaconda
 requests
 sqlalchemy

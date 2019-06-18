@@ -4,8 +4,8 @@ Schedule the collection of data.
 import time
 from threading import Thread
 
-from .utils import get_trades_managers, get_managers
 from .logs import logger_trades, logger_order_book
+from locrian_collect.data_managers import get_trades_managers, get_managers
 
 PARAMS_MAP = {'trades': {'managers': get_trades_managers(),
                          'time_between_requests': 100,  # seconds
@@ -62,8 +62,9 @@ def scheduler(data_to_record):
 
 
 def delta_time_to_sleep(interval, offset):
-    """Time between now and the next timestamp where the
-    timestamp modulo interval is zero
+    """Get the amount of time to sleep in seconds before making another request.
+
+    Time between now and the next timestamp where the timestamp modulo interval is zero.
 
     Parameters
     ----------

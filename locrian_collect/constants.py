@@ -1,7 +1,10 @@
 """
 Constants used in locrian_collect
 """
+
 from enum import Enum
+
+from locrian_collect.utils import get_db_login
 
 
 class Side(Enum):
@@ -28,3 +31,5 @@ BASE_URL_FUTURE_TRADES = f'{OKEX}future_trades.do'
 BASE_URL_INDEX = f'{OKEX}future_index.do'
 BASE_URL_FUTURE_DEPTH = f'{OKEX}future_depth.do'
 UNIX_SOCKET = '/var/run/mysqld/mysqld.sock'
+
+DB_USERNAME, DB_PASSWORD = get_db_login()

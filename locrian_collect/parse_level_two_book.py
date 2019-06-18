@@ -1,6 +1,6 @@
 import pandas as pd
 
-from locrian_collect.constants import ORDER_MAP, Side
+from .constants import ORDER_MAP, Side
 
 
 def parse_level_two_book(timestamp, book):
