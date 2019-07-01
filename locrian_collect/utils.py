@@ -1,9 +1,16 @@
+"""
+General utility methods.
+"""
 import getpass
 import json
 import os
 
 
 def set_db_login():
+    """Save the database login credentials to a file in the users home directory.
+
+    Note this saves credentials unencrypted.
+    """
     home = os.path.expanduser('~')
 
     print('Enter db credentials below.  Note this will save the db password unencrytped '
@@ -18,6 +25,13 @@ def set_db_login():
 
 
 def get_db_login():
+    """Get the stored database credentials from a file.
+
+    Returns
+    -------
+    tuple
+        Tuple of the username and password.
+    """
     with open(f'{os.path.expanduser("~")}/.db_login', 'r') as f:
         credentials = json.loads(f.read())
 

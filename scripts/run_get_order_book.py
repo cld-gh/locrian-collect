@@ -1,4 +1,4 @@
 from locrian_collect.scheduler import schedule_get_order_book_and_index_data
 
 
-schedule_get_order_book_and_index_data
+schedule_get_order_book_and_index_data()

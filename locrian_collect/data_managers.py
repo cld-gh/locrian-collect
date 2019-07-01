@@ -165,7 +165,7 @@ class IndexManager(BaseManager):
         The exchanges url for requesting data.
     """
     def __init__(self, mysql_table, url):
-        super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
+        super().__init__(mysql_table=mysql_table, url=url, database_name='locrian_future_index')
         self.col_name = 'future_index'
 
     def get_data(self):
@@ -212,7 +212,7 @@ class TradesManager(BaseManager):
         The exchanges url for requesting data.
     """
     def __init__(self, mysql_table, url):
-        super().__init__(mysql_table=mysql_table, url=url, database_name='crypto_trades')
+        super().__init__(mysql_table=mysql_table, url=url, database_name='locrian_trades')
 
     def get_data(self):
         """Override the BaseManager method. Get data from the exchange and check if that data.

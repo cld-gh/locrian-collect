@@ -1,3 +1,6 @@
+"""
+Parsing the level two book.
+"""
 import pandas as pd
 
 from .constants import ORDER_MAP, Side

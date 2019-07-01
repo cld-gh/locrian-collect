@@ -1,5 +1,5 @@
 [MASTER]
 good-names=df,hf,db,logger_trades,logger_index,logger_order_book
-disable=W1203,R0913,W0212,E0402,R0903,R0201
+disable=W1203,R0913,W0212,E0402,R0903,R0201,C0103
 ignored-argument-names=args|kwargs|patch_database_and_requests
 ignored-modules=pandas,unittest

@@ -14,7 +14,7 @@ def schedule_get_order_book_and_index_data():
     logger = logger_order_book
     time_between_requests = 10  # seconds
     offset = 0.001
-    log_msg = 'Requesting trades.'
+    log_msg = 'Requesting order book and futures index.'
     scheduler(db_managers, logger, time_between_requests, offset, log_msg)
 
 
@@ -24,7 +24,7 @@ def schedule_get_trades():
     logger = logger_trades
     time_between_requests = 100  # seconds
     offset = 0.1
-    log_msg = 'Requesting order book and futures index.'
+    log_msg = 'Requesting trades.'
     scheduler(db_managers, logger, time_between_requests, offset, log_msg)
 
 
