@@ -7,37 +7,46 @@ from threading import Thread
 from .logs import logger_trades, logger_order_book
 from .data_managers import get_trades_managers, get_managers
 
-PARAMS_MAP = {'trades': {'managers': get_trades_managers(),
-                         'time_between_requests': 100,  # seconds
-                         'logger': logger_trades,
-                         'log_msg': 'Requesting trades.',
-                         'offset': 0.1
-                         },
-              'order_book': {'managers': get_managers(),
-                             'time_between_requests': 10,  # seconds
-                             'logger': logger_order_book,
-                             'log_msg': 'Requesting order book and futures index.',
-                             'offset': 0.001
-                             }}
+
+def schedule_get_order_book_and_index_data():
+    """Schedule the recording of order book and index data."""
+    db_managers = get_managers()
+    logger = logger_order_book
+    time_between_requests = 10  # seconds
+    offset = 0.001
+    log_msg = 'Requesting trades.'
+    scheduler(db_managers, logger, time_between_requests, offset, log_msg)
 
 
-def scheduler(data_to_record):
+def schedule_get_trades():
+    """Schedule the recording of trade data."""
+    db_managers = get_trades_managers()
+    logger = logger_trades
+    time_between_requests = 100  # seconds
+    offset = 0.1
+    log_msg = 'Requesting order book and futures index.'
+    scheduler(db_managers, logger, time_between_requests, offset, log_msg)
+
+
+def scheduler(db_managers, logger, time_between_requests, offset, log_msg):
     """Schedule the recording of data (order book, index or trades).
 
     Parameters
     ----------
-    data_to_record: str
-        The type of data to record, either 'order_book' or 'trades'
+    db_managers: list
+        List of data managers, see data_managers module.
+    logger:
+        logger object for logging info and warnings.
+    time_between_requests: float
+        Amount of time to wait between requests of data.
+    offset: float
+        Offset to add to the amount of time to wait between requests.  If
+        the amount of time to wait between requests is 10 and offset 0.1,
+        data will be recorded at 0.1, 10.1, 20.1 ... seconds.
+    log_msg: str
+        Message to display each time data is requested.
 
     """
-    params = PARAMS_MAP[data_to_record]
-
-    db_managers = params['managers']
-    time_between_requests = params['time_between_requests']
-    logger = params['logger']
-    log_msg = params['log_msg']
-    offset = params['offset']
-
     num_managers = len(db_managers)
 
     if num_managers / time_between_requests > 10:

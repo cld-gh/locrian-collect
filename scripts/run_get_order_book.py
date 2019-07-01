@@ -1,4 +1,4 @@
-from locrian_collect.scheduler import scheduler
+from locrian_collect.scheduler import schedule_get_order_book_and_index_data
 
 
-scheduler(data_to_record='order_book')
+schedule_get_order_book_and_index_data
