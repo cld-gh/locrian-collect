@@ -61,7 +61,7 @@ side - varchar(4)\
 tid - bigint(20)
 
 
-#### Future Index (locrian_trades)
+#### Future Index (locrian_future_index)
 The future index, is an index constructed from the prices of different exchanges and is a time-weighted average
 over the past hour.  This index is computed by OkCoin and is used as the reference price for settling contracts.
 
