@@ -1,7 +1,5 @@
-mysqlclient
+anaconda
 numpy
 pandas
-h5py
-matplotlib
-pytest
-anaconda
+requests
+sqlalchemy

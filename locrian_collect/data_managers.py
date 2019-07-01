@@ -1,38 +1,23 @@
 """
 Data Managers that control the collection and storage of data from an exchange to a database.
 """
-import time
 import json
+import time
+
 import requests
-import MySQLdb
-import pandas as pd
 import sqlalchemy
+from sqlalchemy import text
 
-from .constants import (CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
-                        BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH,
-                        NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS,
-                        Side, ORDER_MAP)
+from .constants import (
+    NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS, UNIX_SOCKET, DB_USERNAME, DB_PASSWORD,
+    CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
+    BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH
+)
 from .logs import logger_order_book, logger_index, logger_trades
+from .parse_level_two_book import parse_level_two_book
 
 
-def _connect_to_mysql(database_name):
-    """Connect to a mysql database
-
-    Parameters
-    ----------
-    database_name: str
-        Name of the database to connect to.
-
-    Returns
-    -------
-    Connection to MySQLdb.
-
-    """
-    return MySQLdb.connect('localhost', 'monitor2', 'password', database_name,
-                           unix_socket='/var/run/mysqld/mysqld.sock')
-
-
-def _get_sqlalchemy_engine(database_name='locrian_level_two'):
+def get_sqlalchemy_engine(database_name):
     """Get Sqlalchemy engine
 
     Parameters
@@ -45,7 +30,10 @@ def _get_sqlalchemy_engine(database_name='locrian_level_two'):
     Engine for sqlalchemy.
 
     """
-    return sqlalchemy.create_engine(f'mysql://monitor2:password@localhost:3306/{database_name}?unix_socket=/var/run/mysqld/mysqld.sock')
+    host = 'localhost'
+    return sqlalchemy.create_engine(
+        f'mysql://{DB_USERNAME}:{DB_PASSWORD}@{host}:3306/{database_name}'
+        f'?unix_socket={UNIX_SOCKET}')
 
 
 class BaseManager:
@@ -63,58 +51,59 @@ class BaseManager:
     """
     def __init__(self, mysql_table, url, database_name):
         self.database_name = database_name
-        self.db = _connect_to_mysql(self.database_name)
-        self.curs = self.db.cursor()
         self.mysql_table = mysql_table
         self.url = url
         self.col_name = None
 
     def get_data(self):
-        """Helper function to get data and save the results after filtering."""
-        request_time, return_time, result = self._request_data()
-
-        if result is None:
-            return
-
-        self.filter_results(request_time, return_time, result)
-
-    def filter_results(self, request_time, return_time, result):
-        """Filter results not implemented in the base class."""
+        """Helper function to get data and save the results after filtering, not implemented
+        in the base class."""
         raise NotImplementedError
 
-    def execute_query(self, query):
-        """Execute a database query.
+    def execute_query_read(self, query):
+        """Execute a sql query to read from a database
 
         Parameters
         ----------
         query: str
-            A SQL query to be executed
+            SQL query to write to database
 
         Returns
         -------
-        Result of the SQL query.
+        tuple
+            Fetches all from sql query.
         """
-        self.curs.close()
-        self.db.close()
-        if not self.db.open:
-            self.db = _connect_to_mysql(self.database_name)
-            self.curs = self.db.cursor()
-        return self.curs.execute(query)
+        engine = get_sqlalchemy_engine(self.database_name)
+        result = engine.execute(text(query)).fetchall()
+        engine.dispose()
+        return result
+
+    def execute_query_write(self, query):
+        """Execute a sql query to write to a database
+
+        Parameters
+        ----------
+        query: str
+            SQL query to write to database
+        """
+        engine = get_sqlalchemy_engine(self.database_name)
+        engine.execute(text(query).execution_options(autocommit=True))
+        engine.dispose()
 
     def _request_data(self):
         """Make a REST request to the url."""
         try:
             request_time = int(time.time() * NANOSECOND_FACTOR)
-            result = (requests.get(self.url, timeout=8)).json()
+            result = requests.get(self.url, timeout=8).json()
             return_time = int(time.time() * NANOSECOND_FACTOR)
             return request_time, return_time, result
 
         except requests.Timeout:
-            logger_order_book.warn(f'Timeout error: {self.mysql_table}')
+            logger_order_book.warning(f'Timeout error: {self.mysql_table}')
         except RuntimeError:
-            logger_order_book.warn(f'Runtime error: {self.mysql_table}')
+            logger_order_book.warning(f'Runtime error: {self.mysql_table}')
         except ValueError as exc:
-            logger_order_book.warn(f'{exc}')
+            logger_order_book.warning(f'{exc}')
 
         return None, None, None
 
@@ -130,28 +119,22 @@ class OrderBookManager(BaseManager):
         The exchanges url for requesting data.
     """
     def __init__(self, asset_name, mysql_table, url):
-        super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
+        super().__init__(mysql_table=mysql_table, url=url, database_name='locrian_level_two')
         self.col_name = 'orderBook'
         self.asset_name = asset_name
 
-    def filter_results(self, request_time, return_time, result):
-        """Filter the results and save the result to the database.
+    def get_data(self):
+        """Helper function to get data and save the results after filtering."""
+        request_time, _, result = self._request_data()
 
-        If the data does not have both bids and asks data do not record anything and log a warning.
+        if result is None:
+            return
 
-        Parameters
-        ----------
-        request_time: int
-            The unix time in nanoseconds the request was made.
-        return_time: int
-            The unix time in nanoseconds the data was returned from the request.
-        result: The data returned by a REST request.
-        """
         book = result
         result = f"'{json.dumps(result)}'"
 
         if 'ask' not in f'{result}' or 'bid' not in f'{result}' or '[]' in f'{result}':
-            logger_order_book.warn(f'Error {self.mysql_table}: {result}')
+            logger_order_book.warning(f'Error {self.mysql_table}: {result}')
         else:
             self.add_book_to_db(request_time, book)
 
@@ -165,44 +148,10 @@ class OrderBookManager(BaseManager):
         book: dict
             The level two book as a dict; {'side': [price, volume]}
         """
-        level_two_book = _parse_level_two_book(timestamp, book)
-        engine = _get_sqlalchemy_engine('locrian_level_two')
+        level_two_book = parse_level_two_book(timestamp, book)
+        engine = get_sqlalchemy_engine(self.database_name)
         level_two_book.to_sql(self.asset_name, engine, if_exists='append', index=False)
         engine.dispose()
-
-
-def _parse_level_two_book(timestamp, book):
-    """Parse level two book from json returned by exchange to level two dataframe.
-
-    Parameters
-    ----------
-    timestamp: int
-        The unix time in nanoseconds the request was made.
-    book: dict
-        The level two book as a dict; {'side': [price, volume]}
-
-    Returns
-    -------
-    pd.DataFame
-        Level two book as a pandas dataframe.
-    """
-    data = []
-    for side in book:
-        try:
-            ordering = ORDER_MAP[Side[side]]
-        except KeyError as key_error:
-            print(side, book, timestamp)
-            raise KeyError(key_error)
-
-        levels = book[side][::ordering]
-        side_as_value = Side[side].value
-
-        for level_index, level in enumerate(levels, 1):
-            price = level[0]
-            volume = level[1]
-            data.append([timestamp, side_as_value, level_index, price, volume])
-
-    return pd.DataFrame(data, columns=['timestamp', 'side', 'level', 'price', 'volume'])
 
 
 class IndexManager(BaseManager):
@@ -216,10 +165,25 @@ class IndexManager(BaseManager):
         The exchanges url for requesting data.
     """
     def __init__(self, mysql_table, url):
-        super().__init__(mysql_table=mysql_table, url=url, database_name='bitcoindb_V2')
+        super().__init__(mysql_table=mysql_table, url=url, database_name='locrian_future_index')
         self.col_name = 'future_index'
 
-    def add_row_to_mysql(self, request_time, return_time, row):
+    def get_data(self):
+        """Helper function to get data and save the results after filtering."""
+        request_time, return_time, result = self._request_data()
+
+        if result is None:
+            return
+
+        try:
+            result = result['future_index']
+        except KeyError:
+            logger_index.warning(f'Error {self.mysql_table}: {result}')
+            return
+
+        self.add_row_to_database(request_time, return_time, result)
+
+    def add_row_to_database(self, request_time, return_time, row):
         """Insert a row into the mysql database.
 
         Parameters
@@ -234,29 +198,7 @@ class IndexManager(BaseManager):
         insert_query = (f'INSERT INTO {self.mysql_table} '
                         f'(unixRequestTime, unixReturnTime, {self.col_name}) '
                         f"Values ({request_time}, {return_time}, {row})")
-        self.execute_query(insert_query)
-        self.db.commit()
-
-    def filter_results(self, request_time, return_time, result):
-        """Filter the results and save the result to the database.
-
-        If the data does not have future_index as a key do not save the data.
-
-        Parameters
-        ----------
-        request_time: int
-            The unix time in nanoseconds the request was made.
-        return_time: int
-            The unix time in nanoseconds the data was returned from the request.
-        result: The data returned by a REST request.
-        """
-        try:
-            result = result['future_index']
-        except KeyError:
-            logger_index.warn(f'Error {self.mysql_table}: {result}')
-            return
-
-        self.add_row_to_mysql(request_time, return_time, result)
+        self.execute_query_write(insert_query)
 
 
 class TradesManager(BaseManager):
@@ -270,7 +212,7 @@ class TradesManager(BaseManager):
         The exchanges url for requesting data.
     """
     def __init__(self, mysql_table, url):
-        super().__init__(mysql_table=mysql_table, url=url, database_name='crypto_trades')
+        super().__init__(mysql_table=mysql_table, url=url, database_name='locrian_trades')
 
     def get_data(self):
         """Override the BaseManager method. Get data from the exchange and check if that data.
@@ -286,18 +228,14 @@ class TradesManager(BaseManager):
                 if self.check_tid(row['tid']):
                     continue
             except KeyError as exception_msg:
-                logger_trades.warn(f'Error no tid, {row}  |  {exception_msg}')
+                logger_trades.warning(f'Error no tid, {row}  |  {exception_msg}')
                 continue
             except TypeError as exception_msg:
-                logger_trades.warn(f'Error - tid type {row} | {exception_msg}')
-            self.add_row_to_mysql(request_time, return_time, row)
+                logger_trades.warning(f'Error - tid type {row} | {exception_msg}')
+                continue
+            self.add_row_to_database(request_time, return_time, row)
 
-    def check_tid(self, tid):
-        """Get all the trade identifiers from the database."""
-        query = f'SELECT tid FROM {self.mysql_table} where tid={tid}'
-        return self.execute_query(query)
-
-    def add_row_to_mysql(self, request_time, return_time, row):
+    def add_row_to_database(self, request_time, return_time, row):
         """Insert a row into the mysql database.
 
         Parameters
@@ -314,12 +252,18 @@ class TradesManager(BaseManager):
                         f'(unixRequestTime, unixReturnTime, trade_time, amount, price, side, tid) '
                         f'Values ({request_time}, {return_time}, {trade_ts}, {row["amount"]}, '
                         f'{row["price"]}, "{row["type"]}", {row["tid"]})')
-        self.execute_query(insert_query)
-        self.db.commit()
+        self.execute_query_write(insert_query)
 
-    def filter_results(self, request_time, return_time, result):
-        """Trades Manager does not use this function"""
-        raise NotImplementedError
+    def check_tid(self, tid):
+        """Get all the trade identifiers from the database.
+
+        Returns
+        -------
+        list(tuples)
+            [(`tid`,), ...]
+        """
+        query = f'SELECT tid FROM {self.mysql_table} where tid={tid}'
+        return self.execute_query_read(query)
 
 
 def trades_url_mysql_maps():

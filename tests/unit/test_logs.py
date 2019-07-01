@@ -11,10 +11,12 @@ def test_get_logger():
         expected_dir = temp.name
         expected_fmt = '[%(asctime)s : %(name)s : %(levelname)s]  %(message)s'
 
-        for _ in range(2):
-            logger = get_logger(temp.name, 'test_name')
+        loggers = {}
 
-            assert logger.name == 'test_name'
+        for index in range(2):
+            loggers[index] = get_logger(temp.name, 'test_name')
 
-            assert logger.handlers[0].__dict__['baseFilename'] == expected_dir
-            assert logger.handlers[1].formatter._fmt == expected_fmt
+            assert loggers[index].name == 'test_name'
+
+            assert loggers[index].handlers[0].baseFilename == expected_dir
+            assert loggers[index].handlers[1].formatter._fmt == expected_fmt
