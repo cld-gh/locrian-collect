@@ -134,7 +134,7 @@ class OrderBookManager(BaseManager):
         result = f"'{json.dumps(result)}'"
 
         if 'ask' not in f'{result}' or 'bid' not in f'{result}' or '[]' in f'{result}':
-            logger_order_book.warn(f'Error {self.mysql_table}: {result}')
+            logger_order_book.warning(f'Error {self.mysql_table}: {result}')
         else:
             self.add_book_to_db(request_time, book)
 
@@ -178,7 +178,7 @@ class IndexManager(BaseManager):
         try:
             result = result['future_index']
         except KeyError:
-            logger_index.warn(f'Error {self.mysql_table}: {result}')
+            logger_index.warning(f'Error {self.mysql_table}: {result}')
             return
 
         self.add_row_to_database(request_time, return_time, result)
@@ -228,10 +228,11 @@ class TradesManager(BaseManager):
                 if self.check_tid(row['tid']):
                     continue
             except KeyError as exception_msg:
-                logger_trades.warn(f'Error no tid, {row}  |  {exception_msg}')
+                logger_trades.warning(f'Error no tid, {row}  |  {exception_msg}')
                 continue
             except TypeError as exception_msg:
-                logger_trades.warn(f'Error - tid type {row} | {exception_msg}')
+                logger_trades.warning(f'Error - tid type {row} | {exception_msg}')
+                continue
             self.add_row_to_database(request_time, return_time, row)
 
     def add_row_to_database(self, request_time, return_time, row):

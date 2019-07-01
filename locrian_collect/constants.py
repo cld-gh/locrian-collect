@@ -1,10 +1,10 @@
 """
 Constants used in locrian_collect
 """
-
 from enum import Enum
+import os
 
-from locrian_collect.utils import get_db_login
+from .utils import get_db_login
 
 
 class Side(Enum):
@@ -15,7 +15,7 @@ class Side(Enum):
 
 ORDER_MAP = {Side.ask: -1, Side.bid: 1}
 
-BASE_DATA_DIRECTORY = '/home/chris/locrian/data'
+BASE_DATA_DIRECTORY = f"{os.path.expanduser('~')}/locrian/data"
 NANOSECOND_FACTOR = 1000000000
 MILLISECONDS_TO_NANOSECONDS = 1000000
 CURRENCY_LIST = ('btc', 'bch', 'ltc', 'etc', 'eth')
