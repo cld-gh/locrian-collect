@@ -1,5 +1,7 @@
 # Locrian Collect
 
+Locrian Collect is a simple data collection package for cryptocurrencies available on the exchanges OkCoin and Okex.  A script is provided which synchronously polls the exchange every 10 seconds for a number of different assets and saves the full-depth level two order book to a database.
+
 ### Install and Setup
 
 Create a new environment.
