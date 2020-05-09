@@ -7,11 +7,11 @@ import time
 import requests
 import sqlalchemy
 from sqlalchemy import text
+import pandas as pd
 
 from .constants import (
     NANOSECOND_FACTOR, MILLISECONDS_TO_NANOSECONDS, UNIX_SOCKET, DB_USERNAME, DB_PASSWORD,
-    CURRENCY_LIST, BASE_URL_SPOT_TRADES, CONTRACT_LIST, BASE_URL_FUTURE_TRADES,
-    BASE_URL_SPOT_DEPTH, BASE_URL_INDEX, BASE_URL_FUTURE_DEPTH
+    CURRENCY_LIST, CONTRACT_LIST, BASE_OKCOIN_URL, BASE_OKEX_URL
 )
 from .logs import logger_order_book, logger_index, logger_trades
 from .parse_level_two_book import parse_level_two_book
@@ -176,7 +176,7 @@ class IndexManager(BaseManager):
             return
 
         try:
-            result = result['future_index']
+            result = result['index']
         except KeyError:
             logger_index.warning(f'Error {self.mysql_table}: {result}')
             return
@@ -270,15 +270,17 @@ def trades_url_mysql_maps():
     """Return a list of dicts where the dicts have information for the mysql_table and url
     to get the data."""
     assets = []
+    contract_alias_map = get_future_alias_mapping()
+
     for currency in CURRENCY_LIST:
         assets.append({'mysql_table': f'trades_spot_{currency}',
-                       'url': f'{BASE_URL_SPOT_TRADES}?symbol={currency}_usd'})
+                       'url': f'{BASE_OKCOIN_URL}{currency.upper()}-USD/trades?size=200'})
         for contract in CONTRACT_LIST:
             assets.append({
                 'mysql_table':
                     f'trades_future_{contract}_{currency}',
                 'url':
-                    f'{BASE_URL_FUTURE_TRADES}?symbol={currency}_usd&contract_type={contract}'})
+                    f'{BASE_OKEX_URL}{currency.upper()}-USD-{contract_alias_map[contract]}/trades?size=200'})
     return assets
 
 
@@ -293,19 +295,44 @@ def get_trades_managers():
     return trades_managers
 
 
+def get_future_alias_mapping():
+    aliases = ['this_week', 'next_week', 'quarter']  # Used in pandas query
+    data = requests.get('https://www.okex.com/api/futures/v3/instruments').json()
+    mapping = (
+        pd.DataFrame(data)
+        .query('alias in @aliases')[['alias', 'delivery']]
+        .drop_duplicates()
+        .set_index('alias')
+        .to_dict()['delivery']
+    )
+    return {alias: _parse_date(date) for alias, date in mapping.items()}
+
+
+def _parse_date(date):
+    """2020-01-01 --> 200101"""
+    return date.replace('-', '')[2:]
+
+
 def get_managers():
     """Get a list of Managers for order books and future indexes."""
     managers = []
+
+    contract_alias_map = get_future_alias_mapping()
+
     for currency in CURRENCY_LIST:
+        print(f'{BASE_OKCOIN_URL}{currency.upper()}-USD/book?size=500')
         managers.append(OrderBookManager(asset_name=f'spot_{currency}',
                                          mysql_table=f'spot_{currency}_usd_orderbook',
-                                         url=f'{BASE_URL_SPOT_DEPTH}?symbol={currency}_usd'))
-
-        managers.append(IndexManager(mysql_table=f'future_index_{currency}_usd',
-                                     url=f'{BASE_URL_INDEX}?symbol={currency}_usd'))
+                                         url=f'{BASE_OKCOIN_URL}{currency.upper()}-USD/book?size=500'))
+        print(f'{BASE_OKEX_URL}{currency.upper()}-USD-{contract_alias_map["quarter"]}/index')
+        managers.append(
+            IndexManager(
+                mysql_table=f'future_index_{currency}_usd',
+                url=f'{BASE_OKEX_URL}{currency.upper()}-USD-{contract_alias_map["quarter"]}/index'))
 
         for contract in CONTRACT_LIST:
-            url = f'{BASE_URL_FUTURE_DEPTH}?symbol={currency}_usd&contract_type={contract}&size=200'
+            url = f'{BASE_OKEX_URL}{currency.upper()}-USD-{contract_alias_map[contract]}/book?size=200'
+            print(url)
             managers.append(
                 OrderBookManager(asset_name=f'future_{currency}_{contract}',
                                  mysql_table=f'future_{currency}_usd_{contract}_orderbook',

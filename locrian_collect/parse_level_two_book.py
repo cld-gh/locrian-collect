@@ -22,6 +22,7 @@ def parse_level_two_book(timestamp, book):
         Level two book as a pandas dataframe.
     """
     data = []
+    book.pop('timestamp', None)  # Ignore Timestamp returned in book.
     for side in book:
         try:
             ordering = ORDER_MAP[Side[side]]

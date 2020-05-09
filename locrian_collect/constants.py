@@ -21,15 +21,21 @@ MILLISECONDS_TO_NANOSECONDS = 1000000
 CURRENCY_LIST = ('btc', 'bch', 'ltc', 'etc', 'eth')
 CONTRACT_LIST = ('this_week', 'next_week', 'quarter')
 
-OKCOIN = 'https://www.okcoin.com/api/v1/'
-OKEX = 'https://www.okex.com/api/v1/'
+# https://www.okcoin.com/api/spot/v3/instruments/btc-usd/book?size=500
+# https://www.okcoin.com/api/spot/v3/instruments/btc-usd/trades?size=500
+# https://www.okex.com/api/futures/v3/instruments/BTC-USD-200515/book?size=500
+# https://www.okex.com/api/futures/v3/instruments/BTC-USD-200515/trades?size=500
+# https://www.okex.com/api/futures/v3/instruments/BTC-USD-200515/index?size=500
 
-BASE_URL_SPOT_TRADES = f'{OKCOIN}trades.do'
-BASE_URL_SPOT_DEPTH = f'{OKCOIN}depth.do'
-
-BASE_URL_FUTURE_TRADES = f'{OKEX}future_trades.do'
-BASE_URL_INDEX = f'{OKEX}future_index.do'
-BASE_URL_FUTURE_DEPTH = f'{OKEX}future_depth.do'
+BASE_OKCOIN_URL = 'https://www.okcoin.com/api/spot/v3/instruments/'
+BASE_OKEX_URL = 'https://www.okex.com/api/futures/v3/instruments/'
+#
+# BASE_URL_SPOT_TRADES = f'{OKCOIN}trades.do'
+# BASE_URL_SPOT_DEPTH = f'{OKCOIN}depth.do'
+#
+# BASE_URL_FUTURE_TRADES = f'{OKEX}future_trades.do'
+# BASE_URL_INDEX = f'{OKEX}future_index.do'
+# BASE_URL_FUTURE_DEPTH = f'{OKEX}future_depth.do'
 UNIX_SOCKET = '/var/run/mysqld/mysqld.sock'
 
 DB_USERNAME, DB_PASSWORD = get_db_login()
