@@ -225,13 +225,13 @@ class TradesManager(BaseManager):
 
         for row in result:
             try:
-                if self.check_tid(row['tid']):
+                if self.check_tid(row['trade_id']):
                     continue
             except KeyError as exception_msg:
-                logger_trades.warning(f'Error no tid, {row}  |  {exception_msg}')
+                logger_trades.warning(f'Error no trade_id, {row}  |  {exception_msg}')
                 continue
             except TypeError as exception_msg:
-                logger_trades.warning(f'Error - tid type {row} | {exception_msg}')
+                logger_trades.warning(f'Error - trade_id type {row} | {exception_msg}')
                 continue
             self.add_row_to_database(request_time, return_time, row)
 
@@ -247,11 +247,15 @@ class TradesManager(BaseManager):
         row: dict
             Dictionary of the data columns to save.
         """
-        trade_ts = row['date_ms']*MILLISECONDS_TO_NANOSECONDS
+        trade_ts = pd.Timestamp(row['timestamp']).value
+        amount = row.get('size', row.get('qty'))
+        if amount is None:
+            raise ValueError(f'amount is None.  Cannot get size or qty from {row}')
+
         insert_query = (f'INSERT IGNORE INTO {self.mysql_table} '
                         f'(unixRequestTime, unixReturnTime, trade_time, amount, price, side, tid) '
-                        f'Values ({request_time}, {return_time}, {trade_ts}, {row["amount"]}, '
-                        f'{row["price"]}, "{row["type"]}", {row["tid"]})')
+                        f'Values ({request_time}, {return_time}, {trade_ts}, {amount}, '
+                        f'{row["price"]}, "{row["side"]}", {row["trade_id"]})')
         self.execute_query_write(insert_query)
 
     def check_tid(self, tid):
